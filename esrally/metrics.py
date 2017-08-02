@@ -306,6 +306,17 @@ class MetricsStore:
             MetaInfoScope.node: {}
         }
 
+    def merge_meta_info(self, to_merge):
+        """
+        Merges the current meta info with another one.
+
+        :param to_merge: A meta info representation that should be merged with the current one.
+        """
+        if MetaInfoScope.cluster in to_merge:
+            self._meta_info[MetaInfoScope.cluster].update(to_merge[MetaInfoScope.cluster])
+        if MetaInfoScope.node in to_merge:
+            self._meta_info[MetaInfoScope.node].update(to_merge[MetaInfoScope.node])
+
     @property
     def meta_info(self):
         """

@@ -63,6 +63,13 @@ def configure_logging(cfg):
 
     logging.root.addHandler(ch)
     logging.getLogger("elasticsearch").setLevel(logging.WARNING)
+    # logging.getLogger("rally.driver").setLevel(logging.WARNING)
+    # logging.getLogger("rally.track").setLevel(logging.WARNING)
+    # logging.getLogger("rally.client").setLevel(logging.WARNING)
+    # logging.getLogger("rally.modules").setLevel(logging.WARNING)
+    # logging.getLogger("rally.actor").setLevel(logging.WARNING)
+    # logging.getLogger("rally.reporting").setLevel(logging.WARNING)
+    # logging.getLogger("rally.metrics").setLevel(logging.WARNING)
 
     if profiling_enabled:
         profile_file = "%s/profile.log" % application_log_dir_path()
