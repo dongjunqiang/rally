@@ -166,7 +166,6 @@ class BareProvisioner:
     def _configure(self):
         target_root_path = self.es_installer.es_home_path
         provisioner_vars = self._provisioner_variables()
-        print(provisioner_vars)
 
         self.apply_config(self.es_installer.config_source_path, target_root_path, provisioner_vars)
         for installer in self.plugin_installers:
