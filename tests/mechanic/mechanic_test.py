@@ -58,6 +58,17 @@ class HostHandlingTests(TestCase):
             }, mechanic.nodes_by_host(ip_port)
         )
 
+    def test_extract_all_node_ips(self):
+        ip_port = [
+            ("127.0.0.1", 9200),
+            ("127.0.0.1", 9200),
+            ("127.0.0.1", 9200),
+            ("10.16.23.5", 9200),
+            ("11.22.33.44", 9200),
+            ("11.22.33.44", 9200),
+        ]
+        self.assertSetEqual({"127.0.0.1", "10.16.23.5", "11.22.33.44"},
+                            mechanic.extract_all_node_ips(ip_port))
 
 
 

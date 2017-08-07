@@ -59,18 +59,19 @@ class StartEngine:
         self.port = port
         self.node_id = node_id
 
-    def for_nodes(self, ip=None, port=None, node_ids=None):
+    def for_nodes(self, all_node_ips=None, ip=None, port=None, node_ids=None):
         """
 
         Creates a StartNodes instance for a concrete IP, port and their associated node_ids.
 
-        :param ip: The IP to set .
+        :param all_node_ips: The IPs of all nodes in the cluster (including the current one).
+        :param ip: The IP to set.
         :param port: The port number to set.
         :param node_ids: A list of node id to set.
         :return: A corresponding ``StartNodes`` message with the specified IP, port number and node ids.
         """
         return StartNodes(self.cfg, self.open_metrics_context, self.cluster_settings, self.sources, self.build, self.distribution,
-                          self.external, self.docker, ip, port, node_ids)
+                          self.external, self.docker, all_node_ips, ip, port, node_ids)
 
 
 class EngineStarted:
@@ -117,7 +118,8 @@ class BenchmarkStopped:
 ##############################
 
 class StartNodes:
-    def __init__(self, cfg, open_metrics_context, cluster_settings, sources, build, distribution, external, docker, ip, port, node_ids):
+    def __init__(self, cfg, open_metrics_context, cluster_settings, sources, build, distribution, external, docker,
+                 all_node_ips, ip, port, node_ids):
         self.cfg = cfg
         self.open_metrics_context = open_metrics_context
         self.cluster_settings = cluster_settings
@@ -126,6 +128,7 @@ class StartNodes:
         self.distribution = distribution
         self.external = external
         self.docker = docker
+        self.all_node_ips = all_node_ips
         self.ip = ip
         self.port = port
         self.node_ids = node_ids
@@ -174,6 +177,13 @@ def to_ip_port(hosts):
         ip = net.resolve(host_or_ip)
         ip_port_pairs.append((ip, port))
     return ip_port_pairs
+
+
+def extract_all_node_ips(ip_port_pairs):
+    all_node_ips = set()
+    for ip, port in ip_port_pairs:
+        all_node_ips.add(ip)
+    return all_node_ips
 
 
 def nodes_by_host(ip_port_pairs):
@@ -342,17 +352,19 @@ class MechanicActor(actor.RallyActor):
                                  globalName="/rally/mechanic/worker/external",
                                  targetActorRequirements={"coordinator": True})
             self.mechanics.append(m)
-            mechanics_and_start_message.append((m, msg.for_nodes(hosts)))
+            mechanics_and_start_message.append((m, msg.for_nodes(ip=hosts)))
         else:
             logger.info("Cluster consisting of %s will be provisioned by Rally." % hosts)
-            for ip_port, nodes in nodes_by_host(to_ip_port(hosts)).items():
+            all_ips_and_ports = to_ip_port(hosts)
+            all_node_ips = extract_all_node_ips(all_ips_and_ports)
+            for ip_port, nodes in nodes_by_host(all_ips_and_ports).items():
                 ip, port = ip_port
                 if ip == "127.0.0.1":
                     m = self.createActor(NodeMechanicActor,
                                          globalName="/rally/mechanic/worker/localhost",
                                          targetActorRequirements={"coordinator": True})
                     self.mechanics.append(m)
-                    mechanics_and_start_message.append((m, msg.for_nodes(ip, port, nodes)))
+                    mechanics_and_start_message.append((m, msg.for_nodes(all_node_ips, ip, port, nodes)))
                 else:
                     if self.cfg.opts("system", "remote.benchmarking.supported"):
                         logger.info("Benchmarking against %s with external Rally daemon." % hosts)
@@ -372,7 +384,7 @@ class MechanicActor(actor.RallyActor):
                     m = self.createActor(NodeMechanicActor,
                                          globalName="/rally/mechanic/worker/%s" % ip,
                                          targetActorRequirements={"ip": ip})
-                    mechanics_and_start_message.append((m, msg.for_nodes(ip, port, nodes)))
+                    mechanics_and_start_message.append((m, msg.for_nodes(all_node_ips, ip, port, nodes)))
                     self.mechanics.append(m)
         self.status = "starting"
         self.received_responses = []
@@ -460,7 +472,7 @@ class NodeMechanicActor(actor.RallyActor):
                 # avoid follow-up errors in case we receive an unexpected ActorExitRequest due to an early failure in a parent actor.
                 self.metrics_store.lap = 0
 
-                self.mechanic = create(self.config, self.metrics_store, msg.cluster_settings, msg.sources, msg.build,
+                self.mechanic = create(self.config, self.metrics_store, msg.all_node_ips, msg.cluster_settings, msg.sources, msg.build,
                                        msg.distribution, msg.external, msg.docker)
                 nodes = self.mechanic.start_engine()
                 self.running = True
@@ -503,7 +515,8 @@ class NodeMechanicActor(actor.RallyActor):
 # Internal API (only used by the actor and for tests)
 #####################################################
 
-def create(cfg, metrics_store, cluster_settings=None, sources=False, build=False, distribution=False, external=False, docker=False):
+def create(cfg, metrics_store, all_node_ips, cluster_settings=None, sources=False, build=False, distribution=False, external=False,
+           docker=False):
     races_root = paths.races_root(cfg)
     challenge_root_path = paths.race_root(cfg)
     node_ids = cfg.opts("provisioning", "node.ids", mandatory=False)
@@ -536,7 +549,7 @@ def create(cfg, metrics_store, cluster_settings=None, sources=False, build=False
         s = lambda: supplier.from_sources(remote_url, src_dir, revision, gradle, java_home, challenge_root_path, build)
         p = []
         for node_id in node_ids:
-            p.append(provisioner.local_provisioner(cfg, car, plugins, cluster_settings, challenge_root_path, node_id))
+            p.append(provisioner.local_provisioner(cfg, car, plugins, cluster_settings, all_node_ips, challenge_root_path, node_id))
         l = launcher.InProcessLauncher(cfg, metrics_store, races_root, challenge_root_path)
     elif distribution:
         version = cfg.opts("mechanic", "distribution.version")
@@ -548,7 +561,7 @@ def create(cfg, metrics_store, cluster_settings=None, sources=False, build=False
                                                distributions_root=distributions_root, plugins=plugins)
         p = []
         for node_id in node_ids:
-            p.append(provisioner.local_provisioner(cfg, car, plugins, cluster_settings, challenge_root_path, node_id))
+            p.append(provisioner.local_provisioner(cfg, car, plugins, cluster_settings, all_node_ips, challenge_root_path, node_id))
         l = launcher.InProcessLauncher(cfg, metrics_store, races_root, challenge_root_path)
     elif external:
         if cluster_settings:

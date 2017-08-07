@@ -27,6 +27,7 @@ class BareProvisionerTests(TestCase):
             node_name="rally-node-0",
             node_root_dir="~/.rally/benchmarks/races/unittest",
             data_root_paths=["/var/elasticsearch"],
+            all_node_ips=["10.17.22.22", "10.17.22.23"],
             ip="10.17.22.23",
             http_port=9200
         )
@@ -48,6 +49,7 @@ class BareProvisionerTests(TestCase):
 
         self.assertEqual("~/.rally/benchmarks/teams/default/my-car", source_root_path)
         self.assertEqual("/opt/elasticsearch-5.0.0", target_root_path)
+        self.maxDiff = None
         self.assertEqual({
             "cluster_settings": {
                 "indices.query.bool.max_clause_count": 50000,
@@ -61,6 +63,8 @@ class BareProvisionerTests(TestCase):
             "network_host": "10.17.22.23",
             "http_port": "9200-9300",
             "transport_port": "9300-9400",
+            "all_node_ips": "[\"10.17.22.22\",\"10.17.22.23\"]",
+            "minimum_master_nodes": 2,
             "node_count_per_host": 1,
             "install_root_path": "/opt/elasticsearch-5.0.0"
         }, config_vars)
@@ -74,6 +78,7 @@ class ElasticsearchInstallerTests(TestCase):
 
         installer = provisioner.ElasticsearchInstaller(car=team.Car("defaults", "/tmp"),
                                                        node_name="rally-node-0",
+                                                       all_node_ips={"127.0.0.1"},
                                                        ip="127.0.0.1",
                                                        http_port=9200,
                                                        node_root_dir="~/.rally/benchmarks/races/unittest",
@@ -90,6 +95,7 @@ class ElasticsearchInstallerTests(TestCase):
 
         installer = provisioner.ElasticsearchInstaller(car=team.Car("defaults", "/tmp"),
                                                        node_name="rally-node-0",
+                                                       all_node_ips={"127.0.0.1"},
                                                        ip="127.0.0.1",
                                                        http_port=9200,
                                                        node_root_dir="~/.rally/benchmarks/races/unittest",
@@ -109,6 +115,7 @@ class ElasticsearchInstallerTests(TestCase):
     def test_prepare(self, mock_rm, mock_ensure_dir, mock_decompress):
         installer = provisioner.ElasticsearchInstaller(car=team.Car("defaults", "/tmp"),
                                                        node_name="rally-node-0",
+                                                       all_node_ips=["10.17.22.22", "10.17.22.23"],
                                                        ip="10.17.22.23",
                                                        http_port=9200,
                                                        node_root_dir="~/.rally/benchmarks/races/unittest",
@@ -126,6 +133,8 @@ class ElasticsearchInstallerTests(TestCase):
             "network_host": "10.17.22.23",
             "http_port": "9200-9300",
             "transport_port": "9300-9400",
+            "all_node_ips": "[\"10.17.22.22\",\"10.17.22.23\"]",
+            "minimum_master_nodes": 2,
             "node_count_per_host": 1,
             "install_root_path": "/install/elasticsearch-5.0.0-SNAPSHOT"
         }, installer.variables)

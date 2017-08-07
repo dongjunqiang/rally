@@ -12,7 +12,7 @@ from esrally.utils import io, console, process, modules
 logger = logging.getLogger("rally.provisioner")
 
 
-def local_provisioner(cfg, car, plugins, cluster_settings, target_root, node_id):
+def local_provisioner(cfg, car, plugins, cluster_settings, all_node_ips, target_root, node_id):
     ip = cfg.opts("provisioning", "node.ip")
     http_port = cfg.opts("provisioning", "node.http.port")
     node_name_prefix = cfg.opts("provisioning", "node.name.prefix")
@@ -22,7 +22,7 @@ def local_provisioner(cfg, car, plugins, cluster_settings, target_root, node_id)
     node_name = "%s-%d" % (node_name_prefix, node_id)
     node_root_dir = "%s/%s" % (target_root, node_name)
 
-    es_installer = ElasticsearchInstaller(car, node_name, node_root_dir, data_root_paths, ip, http_port)
+    es_installer = ElasticsearchInstaller(car, node_name, node_root_dir, data_root_paths, all_node_ips, ip, http_port)
     plugin_installers = [PluginInstaller(plugin) for plugin in plugins]
 
     return BareProvisioner(cluster_settings, es_installer, plugin_installers, preserve)
@@ -166,6 +166,7 @@ class BareProvisioner:
     def _configure(self):
         target_root_path = self.es_installer.es_home_path
         provisioner_vars = self._provisioner_variables()
+        print(provisioner_vars)
 
         self.apply_config(self.es_installer.config_source_path, target_root_path, provisioner_vars)
         for installer in self.plugin_installers:
@@ -206,13 +207,14 @@ class BareProvisioner:
 
 
 class ElasticsearchInstaller:
-    def __init__(self, car, node_name, node_root_dir, data_root_paths, ip, http_port):
+    def __init__(self, car, node_name, node_root_dir, data_root_paths, all_node_ips, ip, http_port):
         self.car = car
         self.node_name = node_name
         self.node_root_dir = node_root_dir
         self.install_dir = "%s/install" % node_root_dir
         self.node_log_dir = "%s/logs/server" % node_root_dir
         self.data_root_paths = data_root_paths
+        self.all_node_ips = all_node_ips
         self.node_ip = ip
         self.http_port = http_port
         self.es_home_path = None
@@ -253,6 +255,9 @@ class ElasticsearchInstaller:
             "network_host": network_host,
             "http_port": "%d-%d" % (self.http_port, self.http_port + 100),
             "transport_port": "%d-%d" % (self.http_port + 100, self.http_port + 200),
+            "all_node_ips": "[\"%s\"]" % "\",\"".join(self.all_node_ips),
+            # at the moment we are strict and enforce that all nodes are master eligible nodes
+            "minimum_master_nodes": len(self.all_node_ips),
             # We allow multiple nodes per host but we do not allow that they share their data directories
             "node_count_per_host": 1,
             "install_root_path": self.es_home_path
